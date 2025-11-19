@@ -3,7 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Timer</title>
+  
+  <!-- PWA Settings -->
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Timer">
+  <link rel="manifest" id="manifest-placeholder">
+  <!-- Simple Icon (Inline SVG) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22black%22/><text x=%2250%22 y=%2250%22 font-size=%2250%22 text-anchor=%22middle%22 dy=%22.35em%22>⏱️</text></svg>">
+
+  <title>Presentation Timer</title>
   <style>
     :root {
       --bg-color: #000000;
@@ -22,6 +33,7 @@
       color: var(--text-color-default);
       font-family: 'Helvetica Neue', Arial, sans-serif;
       height: 100vh;
+      width: 100vw;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -32,14 +44,17 @@
 
     /* Timer Display */
     #timer-display {
-      font-size: 25vw;
+      /* Maximize font size: calculated based on 5 characters "00:00" */
+      /* Use min() to fit both width and height. */
+      /* 34vw is approx width limit, 60vh is approx height limit */
+      font-size: min(34vw, 60vh);
       font-weight: bold;
-      /* Use sans-serif monospace fonts for a more formal look (Menlo, Consolas, etc.) */
       font-family: 'Menlo', 'Consolas', 'Monaco', 'Liberation Mono', 'Lucida Console', monospace;
       font-variant-numeric: tabular-nums;
       line-height: 1;
       cursor: default;
       user-select: none;
+      white-space: nowrap;
     }
 
     /* Controls Overlay */
@@ -56,6 +71,7 @@
       transform: translateY(90%);
       transition: transform 0.3s;
       opacity: 0.3;
+      z-index: 10;
     }
 
     #controls-container:hover,
@@ -159,9 +175,7 @@
     }
 
     /* Color States */
-    /* Note: !important is used to ensure paused state overrides bell colors */
     body.state-paused { color: var(--text-color-paused) !important; }
-    
     body.state-bell1 { color: var(--text-color-bell1); }
     body.state-bell2 { color: var(--text-color-bell2); }
     body.state-bell3 { color: var(--text-color-bell3); }
@@ -174,10 +188,10 @@
 
   <!-- Controls -->
   <div id="controls-container">
-    <button id="btn-start">スタート</button>
-    <button id="btn-pause">一時停止</button>
-    <button id="btn-reset">リセット</button>
-    <button id="btn-settings">設定</button>
+    <button id="btn-start">Start</button>
+    <button id="btn-pause">Pause</button>
+    <button id="btn-reset">Reset</button>
+    <button id="btn-settings">Settings</button>
   </div>
 
   <!-- Settings Modal -->
@@ -227,25 +241,57 @@
   </div>
 
   <script>
+    /**
+     * PWA Injection (Manifest)
+     * Note: Service Worker registration has been removed to fix the Blob URL error.
+     * Most browsers block Service Workers from blob/data URLs.
+     * The Manifest alone still allows for basic "Add to Home Screen" functionality on Mobile.
+     */
+    (function setupPWA() {
+      // 1. Manifest
+      const manifest = {
+        "name": "Presentation Timer",
+        "short_name": "Timer",
+        "start_url": ".",
+        "display": "standalone",
+        "background_color": "#000000",
+        "theme_color": "#000000",
+        "icons": [
+          {
+            "src": "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+          },
+          {
+            "src": "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+          }
+        ]
+      };
+      const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+      const manifestURL = URL.createObjectURL(manifestBlob);
+      document.getElementById('manifest-placeholder').setAttribute('href', manifestURL);
+    })();
+
+    /**
+     * Timer Logic
+     */
     class PresentationTimer {
       constructor() {
-        // Config (internal values are in seconds)
         this.config = {
           mode: 'up',
-          bell1Sec: 600,  // 10 min
-          bell2Sec: 900,  // 15 min
-          bell3Sec: 1200  // 20 min
+          bell1Sec: 600,
+          bell2Sec: 900,
+          bell3Sec: 1200
         };
-
-        // State
         this.startTime = 0;
-        this.elapsedTime = 0; // ms
+        this.elapsedTime = 0;
         this.isRunning = false;
         this.animationFrameId = null;
-        this.lastBellState = 0; // 0, 1, 2, 3
+        this.lastBellState = 0;
         this.audioCtx = null;
 
-        // Elements
         this.elTimer = document.getElementById('timer-display');
         this.elBody = document.body;
         this.modal = document.getElementById('settings-modal');
@@ -258,8 +304,6 @@
         this.bindEvents();
         this.updateDisplay(0);
         this.applyConfigToInputs();
-        
-        // Initial visual state: Paused (Gray)
         this.elBody.classList.add('state-paused');
       }
 
@@ -268,16 +312,12 @@
         if (params.has('mode')) this.config.mode = params.get('mode');
         
         const parseParam = (key, defaultSec) => {
-            if (params.has(key + 's')) {
-                return parseInt(params.get(key + 's'), 10);
-            }
+            if (params.has(key + 's')) return parseInt(params.get(key + 's'), 10);
             if (params.has(key)) {
                 const val = params.get(key);
                 if (val.includes(':')) {
                     const parts = val.split(':');
-                    const m = parseInt(parts[0], 10) || 0;
-                    const s = parseInt(parts[1], 10) || 0;
-                    return (m * 60) + s;
+                    return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
                 }
                 return parseFloat(val) * 60;
             }
@@ -332,17 +372,14 @@
       start() {
         if (this.isRunning) return;
         this.initAudioContext();
-        // Correct delta timing pattern: no drift over long runs
         this.startTime = Date.now() - this.elapsedTime;
         this.isRunning = true;
-        // Remove paused state (gray) to reveal current bell color
         this.elBody.classList.remove('state-paused');
         this.loop();
       }
 
       pause() {
         this.isRunning = false;
-        // Add paused state (gray)
         this.elBody.classList.add('state-paused');
         cancelAnimationFrame(this.animationFrameId);
       }
@@ -352,14 +389,12 @@
         this.elapsedTime = 0;
         this.lastBellState = 0;
         this.updateDisplay(0);
-        this.setBellState(0); // Reset bell color logic
-        // Ensure paused state is active
+        this.setBellState(0);
         this.elBody.classList.add('state-paused');
       }
 
       loop() {
         if (!this.isRunning) return;
-        // Calculate based on system clock difference
         this.elapsedTime = Date.now() - this.startTime;
         this.updateDisplay(this.elapsedTime);
         this.checkBells(this.elapsedTime);
@@ -368,25 +403,17 @@
 
       updateDisplay(ms) {
         let totalSeconds;
-
         if (this.config.mode === 'down') {
-          // Limit is automatically the max of the 3 bell times
           const maxSec = Math.max(this.config.bell1Sec, this.config.bell2Sec, this.config.bell3Sec);
           let remainingMs = (maxSec * 1000) - ms;
-
-          // Stop counting at 0 (No negative values)
           if (remainingMs < 0) remainingMs = 0;
-
-          // Use Math.ceil for countdown
           totalSeconds = Math.ceil(remainingMs / 1000);
         } else {
-          // Count up
           totalSeconds = Math.floor(ms / 1000);
         }
         
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
-
         const strMin = String(minutes).padStart(2, '0');
         const strSec = String(seconds).padStart(2, '0');
 
@@ -397,26 +424,19 @@
         const elapsedSec = elapsedMs / 1000;
         let currentState = 0;
 
-        if (elapsedSec >= this.config.bell3Sec) {
-          currentState = 3;
-        } else if (elapsedSec >= this.config.bell2Sec) {
-          currentState = 2;
-        } else if (elapsedSec >= this.config.bell1Sec) {
-          currentState = 1;
-        }
+        if (elapsedSec >= this.config.bell3Sec) currentState = 3;
+        else if (elapsedSec >= this.config.bell2Sec) currentState = 2;
+        else if (elapsedSec >= this.config.bell1Sec) currentState = 1;
 
         if (currentState > this.lastBellState) {
           this.playChime(currentState);
           this.lastBellState = currentState;
         }
-        
         this.setBellState(currentState);
       }
 
       setBellState(state) {
-        // Remove old bell states
         this.elBody.classList.remove('state-bell1', 'state-bell2', 'state-bell3');
-        // Apply new bell state (will be visible only if not paused)
         if (state === 1) this.elBody.classList.add('state-bell1');
         if (state === 2) this.elBody.classList.add('state-bell2');
         if (state === 3) this.elBody.classList.add('state-bell3');
@@ -424,39 +444,29 @@
 
       playChime(count) {
         if (!this.audioCtx) return;
-
         const now = this.audioCtx.currentTime;
-        // Interval shortened to 0.4s for multiple bells
         const interval = 0.4;
-
         for (let i = 0; i < count; i++) {
-          const startTime = now + (i * interval);
-          this.playTone(startTime);
+          this.playTone(now + (i * interval));
         }
       }
 
       playTone(startTime) {
         const fundamental = 6600; 
         const duration = 2.5;
-
         const createOsc = (ratio, gainVal, decayTime) => {
           const osc = this.audioCtx.createOscillator();
           const gain = this.audioCtx.createGain();
-
           osc.connect(gain);
           gain.connect(this.audioCtx.destination);
-
           osc.type = 'sine';
           osc.frequency.value = fundamental * ratio;
-
           gain.gain.setValueAtTime(0, startTime);
           gain.gain.linearRampToValueAtTime(gainVal, startTime + 0.005);
           gain.gain.exponentialRampToValueAtTime(0.001, startTime + decayTime);
-
           osc.start(startTime);
           osc.stop(startTime + decayTime);
         };
-
         createOsc(1.0, 0.6, duration);
         createOsc(0.58, 0.2, duration * 0.7); 
         createOsc(2.1, 0.15, duration * 0.6);
