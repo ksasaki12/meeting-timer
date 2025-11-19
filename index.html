@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   
   <!-- PWA Settings -->
   <meta name="theme-color" content="#000000">
@@ -10,23 +10,21 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Timer">
   <link rel="manifest" id="manifest-placeholder">
-  <!-- Simple Icon (Inline SVG) -->
-  <!-- <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22black%22/><text x=%2250%22 y=%2250%22 font-size=%2250%22 text-anchor=%22middle%22 dy=%22.35em%22>⏱️</text></svg>"> -->
-
+  
+  <!-- Custom SVG Icon -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23222' stroke='%23fff' stroke-width='4'/%3E%3Cpath d='M32 6 V14 M32 50 V58 M6 32 H14 M50 32 H58' stroke='%23888' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='32' y1='32' x2='32' y2='16' stroke='%23ff0000' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='32' y1='32' x2='46' y2='32' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Ccircle cx='32' cy='32' r='28' fill='%23222' stroke='%23fff' stroke-width='4'/%3E%3Cpath d='M32 8 V16 M32 48 V56 M8 32 H16 M48 32 H56' stroke='%23888' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='32' y1='32' x2='32' y2='16' stroke='%23ff0000' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='32' y1='32' x2='46' y2='32' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  
+
   <title>Presentation Timer</title>
   <style>
     :root {
       --bg-color: #000000;
       --text-color-default: #ffffff;
-      --text-color-paused: #666666; /* Gray for paused state */
-      --text-color-bell1: #ffff00; /* Yellow */
-      --text-color-bell2: #ff8c00; /* DarkOrange */
-      --text-color-bell3: #ff0000; /* Red */
-      --control-bg: rgba(50, 50, 50, 0.8);
+      --text-color-paused: #666666;
+      --text-color-bell1: #ffff00;
+      --text-color-bell2: #ff8c00;
+      --text-color-bell3: #ff0000;
+      --control-bg: rgba(50, 50, 50, 0.9); /* Slightly darker for better contrast */
     }
 
     body {
@@ -43,13 +41,11 @@
       justify-content: center;
       overflow: hidden;
       transition: color 0.3s ease;
+      -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
     }
 
     /* Timer Display */
     #timer-display {
-      /* Maximize font size: calculated based on 5 characters "00:00" */
-      /* Use min() to fit both width and height. */
-      /* 34vw is approx width limit, 60vh is approx height limit */
       font-size: min(34vw, 60vh);
       font-weight: bold;
       font-family: 'Menlo', 'Consolas', 'Monaco', 'Liberation Mono', 'Lucida Console', monospace;
@@ -68,11 +64,12 @@
       width: 100%;
       background-color: var(--control-bg);
       padding: 10px 0;
+      padding-bottom: env(safe-area-inset-bottom, 10px); /* Handle iPhone notch/home bar */
       display: flex;
       justify-content: center;
       gap: 15px;
       transform: translateY(90%);
-      transition: transform 0.3s;
+      transition: transform 0.3s ease-out, opacity 0.3s;
       opacity: 0.3;
       z-index: 10;
     }
@@ -85,12 +82,13 @@
 
     button {
       font-size: 1.2rem;
-      padding: 10px 20px;
+      padding: 12px 24px; /* Larger touch target */
       cursor: pointer;
       background: #444;
       color: #fff;
       border: 1px solid #666;
       border-radius: 4px;
+      touch-action: manipulation; /* Disable double-tap zoom */
     }
 
     button:hover {
@@ -122,6 +120,8 @@
       width: 90%;
       max-width: 600px;
       color: #fff;
+      max-height: 90vh;
+      overflow-y: auto;
     }
 
     .settings-group {
@@ -246,12 +246,10 @@
   <script>
     /**
      * PWA Injection (Manifest)
-     * Note: Service Worker registration has been removed to fix the Blob URL error.
-     * Most browsers block Service Workers from blob/data URLs.
-     * The Manifest alone still allows for basic "Add to Home Screen" functionality on Mobile.
+     * Use Data URI (Base64) for better compatibility on Android
      */
     (function setupPWA() {
-      // 1. Manifest
+      const iconUrl = document.querySelector('link[rel="icon"]').href;
       const manifest = {
         "name": "Presentation Timer",
         "short_name": "Timer",
@@ -259,22 +257,21 @@
         "display": "standalone",
         "background_color": "#000000",
         "theme_color": "#000000",
+        "orientation": "any",
         "icons": [
-          {
-            "src": document.querySelector('link[rel="icon"]').href,
-            "sizes": "192x192",
-            "type": "image/svg+xml"
-          },
-          {
-            "src": document.querySelector('link[rel="icon"]').href,
-            "sizes": "512x512",
-            "type": "image/svg+xml"
-          }
+          { "src": iconUrl, "sizes": "192x192", "type": "image/svg+xml" },
+          { "src": iconUrl, "sizes": "512x512", "type": "image/svg+xml" }
         ]
       };
-      const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-      const manifestURL = URL.createObjectURL(manifestBlob);
-      document.getElementById('manifest-placeholder').setAttribute('href', manifestURL);
+      
+      // Use Base64 Data URI to avoid Blob URL issues on Android Chrome
+      const stringManifest = JSON.stringify(manifest);
+      const blobManifest = new Blob([stringManifest], {type: 'application/manifest+json'});
+      const reader = new FileReader();
+      reader.onload = function(e) {
+          document.getElementById('manifest-placeholder').setAttribute('href', e.target.result);
+      };
+      reader.readAsDataURL(blobManifest);
     })();
 
     /**
@@ -333,33 +330,53 @@
       }
 
       bindEvents() {
-        document.getElementById('btn-start').addEventListener('click', () => this.start());
-        document.getElementById('btn-pause').addEventListener('click', () => this.pause());
-        document.getElementById('btn-reset').addEventListener('click', () => this.reset());
+        // Helper to bind both click and touchend for robust mobile response
+        const bindBtn = (id, handler) => {
+            const btn = document.getElementById(id);
+            // Standard click
+            btn.addEventListener('click', (e) => {
+                handler(e);
+            });
+            // Touch end (fixes issue where moving UI elements cancel clicks on Android)
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault(); // Prevent phantom click
+                handler(e);
+            });
+        };
+
+        bindBtn('btn-start', () => this.start());
+        bindBtn('btn-pause', () => this.pause());
+        bindBtn('btn-reset', () => this.reset());
         
-        document.getElementById('btn-settings').addEventListener('click', () => {
+        bindBtn('btn-settings', () => {
           this.modal.style.display = 'flex';
           this.applyConfigToInputs();
         });
-        document.getElementById('btn-close-settings').addEventListener('click', () => {
+        
+        bindBtn('btn-close-settings', () => {
           this.saveInputsToConfig();
           this.modal.style.display = 'none';
           this.updateDisplay(this.elapsedTime);
         });
-        document.getElementById('btn-test-sound').addEventListener('click', () => {
+        
+        bindBtn('btn-test-sound', () => {
           this.initAudioContext();
           this.playChime(1);
         });
 
         let hideTimeout;
         const controls = document.getElementById('controls-container');
+        
+        // Show controls logic
         const showControls = () => {
           controls.classList.add('active');
           clearTimeout(hideTimeout);
           hideTimeout = setTimeout(() => controls.classList.remove('active'), 3000);
         };
+        
         window.addEventListener('mousemove', showControls);
-        window.addEventListener('touchstart', showControls);
+        // Use passive listener for scrolling performance, though we don't scroll much
+        window.addEventListener('touchstart', showControls, {passive: true});
       }
 
       initAudioContext() {
