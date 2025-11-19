@@ -4,11 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   
-  <!-- PWA Settings -->
-  <meta name="theme-color" content="#000000">
+  <!-- PWA Settings: iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Timer">
+
+  <!-- PWA Settings: Android / Chrome -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
+  
   <link rel="manifest" id="manifest-placeholder">
   
   <!-- Custom SVG Icon -->
@@ -250,11 +254,14 @@
      */
     (function setupPWA() {
       const iconUrl = document.querySelector('link[rel="icon"]').href;
+      // Use window.location.href for start_url to support query params
+      const startUrl = window.location.href;
+
       const manifest = {
         "name": "Presentation Timer",
         "short_name": "Timer",
-        "start_url": ".",
-        "display": "standalone",
+        "start_url": startUrl,
+        "display": "fullscreen", /* Changed from standalone to fullscreen */
         "background_color": "#000000",
         "theme_color": "#000000",
         "orientation": "any",
