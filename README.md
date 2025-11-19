@@ -1,4 +1,4 @@
-# meeting-timer
+# Presentation-timer
 学会のプレゼンなどで使えるタイマー
 
 # 特徴
